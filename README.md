@@ -1,8 +1,6 @@
 # MillOps Dashboard
 
-A Microsoft SQL Server-backed JavaScript dashboard for tracking lumber inventory, production batches, supplier deliveries, machine events, and low-stock alerts.
-
-Built to simulate the type of internal data-driven application used by lumber, manufacturing, and operations teams.
+A Microsoft SQL Server-backed JavaScript dashboard for tracking pallet cutstock inventory, lumber supply, production batches, supplier deliveries, machine events, and low-stock alerts.
 
 ![MillOps Dashboard](docs/screenshots/dashboard.png)
 
