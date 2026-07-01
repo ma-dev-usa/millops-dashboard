@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>MillOps Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 32px;
+      background: #f6f7f9;
+      color: #222;
+    }
+
+    h1 {
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      margin-top: 0;
+      color: #555;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin: 24px 0;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 18px;
+    }
+
+    .card strong {
+      display: block;
+      font-size: 28px;
+      margin-top: 8px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border: 1px solid #ddd;
+      margin-bottom: 24px;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f2f5;
+    }
+
+    .low {
+      font-weight: bold;
+      background: #fff4f4;
+    }
+
+    .panel {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+
+    .alert {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .small {
+      color: #666;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <h1>MillOps Dashboard</h1>
+  <p class="subtitle">SQL Server-backed JavaScript dashboard for lumber inventory and production operations.</p>
+
+  <section class="cards">
+    <div class="card">Total Products<strong id="totalProducts">0</strong></div>
+    <div class="card">Low Stock Items<strong id="lowStock">0</strong></div>
+    <div class="card">Open Batches<strong id="openBatches">0</strong></div>
+    <div class="card">Late Deliveries<strong id="lateDeliveries">0</strong></div>
+  </section>
+
+  <div class="grid">
+    <main>
+      <h2>Inventory</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Product</th>
+            <th>Grade</th>
+            <th>Qty</th>
+            <th>Reorder Level</th>
+            <th>Location</th>
+          </tr>
+        </thead>
+        <tbody id="inventoryBody"></tbody>
+      </table>
+
+      <h2>Production Batches</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Batch</th>
+            <th>SKU</th>
+            <th>Status</th>
+            <th>Planned</th>
+            <th>Completed</th>
+          </tr>
+        </thead>
+        <tbody id="batchBody"></tbody>
+      </table>
+    </main>
+
+    <aside>
+      <div class="panel">
+        <h2>Low-Stock Alerts</h2>
+        <div id="alertsBody"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Machine Events</h2>
+        <div id="eventsBody"></div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    async function getJson(url) {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Request failed: ${url}`);
+      }
+      return response.json();
+    }
+
+    async function loadDashboard() {
+      const summary = await getJson("/api/dashboard/summary");
+
+      document.getElementById("totalProducts").textContent = summary.total_products;
+      document.getElementById("lowStock").textContent = summary.low_stock_items;
+      document.getElementById("openBatches").textContent = summary.open_batches;
+      document.getElementById("lateDeliveries").textContent = summary.late_deliveries;
+
+      const inventory = await getJson("/api/inventory");
+      document.getElementById("inventoryBody").innerHTML = inventory.map(item => {
+        const isLow = item.quantity_on_hand <= item.reorder_level;
+
+        return `
+          <tr class="${isLow ? "low" : ""}">
+            <td>${item.sku}</td>
+            <td>${item.product_type}</td>
+            <td>${item.grade}</td>
+            <td>${item.quantity_on_hand}</td>
+            <td>${item.reorder_level}</td>
+            <td>${item.location_code}</td>
+          </tr>
+        `;
+      }).join("");
+
+      const alerts = await getJson("/api/alerts/low-stock");
+      document.getElementById("alertsBody").innerHTML = alerts.map(item => `
+        <div class="alert">
+          <strong>${item.sku}</strong><br />
+          ${item.product_type}<br />
+          <span class="small">Qty ${item.quantity_on_hand} | Reorder at ${item.reorder_level}</span>
+        </div>
+      `).join("");
+
+      const batches = await getJson("/api/production/batches");
+      document.getElementById("batchBody").innerHTML = batches.map(batch => `
+        <tr>
+          <td>${batch.batch_id}</td>
+          <td>${batch.sku}</td>
+          <td>${batch.batch_status}</td>
+          <td>${batch.planned_quantity}</td>
+          <td>${batch.completed_quantity}</td>
+        </tr>
+      `).join("");
+
+      const events = await getJson("/api/machine-events");
+      document.getElementById("eventsBody").innerHTML = events.map(event => `
+        <div class="alert">
+          <strong>${event.machine_code}</strong><br />
+          ${event.event_type}<br />
+          <span class="small">${event.event_payload || ""}</span>
+        </div>
+      `).join("");
+    }
+
+    loadDashboard().catch(error => {
+      document.body.innerHTML += `<pre>${error.message}</pre>`;
+    });
+  </script>
+</body>
+</html>
